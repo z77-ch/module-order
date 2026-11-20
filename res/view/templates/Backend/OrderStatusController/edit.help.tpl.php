@@ -1,0 +1,62 @@
+<?php
+/**
+ * Help for the order-status window (ADR-048) — attached by the trait, opened with «Hilfe» in the
+ * title bar or F1; a section per field (`data-help-field` = the field's `name`), the phases in
+ * words (ADR-043 addendum 2026-10-15). The form itself carries no explanations.
+ */
+?>
+<h3>Auftragsstatus</h3>
+<p>Auftragsstatus anlegen, umbenennen, sortieren oder deaktivieren, und festlegen, welcher Status beim Erfassen, bei Auftragsbestätigung, Lieferschein, Fakturieren und Verbuchen gesetzt wird.</p>
+<p>Ein Status ist eine <strong>Bezeichnung</strong>, nach der die Aufträge geordnet und gesucht werden — «Terminauftrag», «Bestellung», «bereitgestellt», «zu fakturieren». Es dürfen beliebig viele sein. Was mit einem Auftrag geschieht (Lager, Fakturieren, Dokumente), bestimmt allein die <strong>Phase</strong>, zu der sein Status gehört — darum kann ein Status nichts falsch buchen.</p>
+<p>Ein Status wird nie gelöscht, nur <strong>deaktiviert</strong> (Schalter «Aktiv» in der Liste): Aufträge, die darin stehen, behalten ihn; er wird nur nicht mehr vergeben. Jeder Statuswechsel eines Auftrags wird protokolliert (wer, wann, von → nach). «Bezahlt» ist kein Status — ob eine Rechnung bezahlt ist, zeigt der Auftrag aus der Debitorenbuchhaltung.</p>
+
+<section data-help-field="code">
+<h3>Code</h3>
+<p>Der Schlüssel, den jeder Auftrag speichert: 2–16 Zeichen, Kleinbuchstaben, Ziffern und Bindestrich, mit einem Buchstaben beginnend. Nach dem Anlegen fix — für eine andere Bedeutung einen neuen Status anlegen.</p>
+</section>
+
+<section data-help-field="label">
+<h3>Bezeichnung</h3>
+<p>Was die Liste und das Auftragsfenster zeigen und wonach in der Auftragsliste gesucht wird. Kann jederzeit geändert werden.</p>
+</section>
+
+<section data-help-field="phase">
+<h3>Phase</h3>
+<p>Die Phasen sind fest — die Leiter, an der jeder Auftrag hochsteigt:</p>
+<ul>
+    <li><strong>Eröffnet</strong> — Offerte, Anfrage, erfasst: kein Lager, kein Fakturieren, das PDF heisst «Offerte». «Auftragsbestätigung …» bestätigt den Auftrag.</li>
+    <li><strong>Termin</strong> — Bestellung, Terminauftrag, Dienstleistung: lagerführende Artikel werden <strong>reserviert</strong>; Fakturieren möglich. «Lieferschein …» liefert.</li>
+    <li><strong>Geliefert</strong> — bereitgestellt, geliefert, zu fakturieren: die Ware ist aus dem Lager, der Bestand wird <strong>abgebucht</strong>; Fakturieren möglich.</li>
+    <li><strong>Abgeschlossen</strong> — fakturiert, gebucht, erledigt: abgebucht; bearbeitbar nur, solange die Rechnung im Faktura-Journal steht (dann «Neu fakturieren»). In der Auftragsliste drei Reiter: der Status des Fakturierens → «Fakturiert», der von «Journal verbuchen» → «Gebucht», jeder andere → «Erledigt».</li>
+    <li><strong>Abgelegt</strong> — beendet ohne Warenbewegung und aufbewahrt (z.B. Status «Storniert», «Abgelehnt», «Offerte angenommen»): nichts reserviert oder abgebucht, nicht mehr bearbeitbar. Mit einer Rechnung nicht möglich.</li>
+</ul>
+<p>Ob eine Position überhaupt Lager bewegt, entscheidet der <strong>Artikel</strong> («führt Bestand») — eine Dienstleistung oder eine Position ohne Artikel nie, in keiner Phase. <strong>Lager: noch nicht verfügbar — folgt.</strong> Reservieren und Abbuchen gelten erst mit der Lagerbuchhaltung; heute bucht ein Auftrag keinen Bestand.</p>
+<p>Von Hand lässt sich der Status eines Auftrags frei ändern — vorwärts, zurück oder in eine andere Phase —, solange zum Auftrag keine Rechnung besteht; mit Rechnung bleibt er. Den Status von «Wird gesetzt beim Fakturieren» und von «Wird gesetzt beim Verbuchen» kann man nie von Hand wählen.</p>
+</section>
+
+<section data-help-field="position">
+<h3>Sortierung</h3>
+<p>Nur die Anzeige: in welcher Folge die Status einer Phase in dieser Liste und in den Auswahlen stehen (z.B. «Bereitgestellt» vor «Geliefert»). Mehrere Status dürfen dieselbe Zahl haben. Auf das Verhalten hat die Zahl keinen Einfluss.</p>
+</section>
+
+<section data-help-field="start">
+<h3>Startstatus für neue Aufträge</h3>
+<p>Mit diesem Status beginnt jeder neue Auftrag, wenn im Formular nichts anderes gewählt wird. Es gibt <strong>einen</strong> Startstatus für alle — in der Phase <strong>Eröffnet</strong> (z.B. «Offerte») oder <strong>Termin</strong> (z.B. «Terminauftrag», wenn Aufträge meist direkt bestätigt sind). Wird er hier eingeschaltet, verliert ihn der Status, der ihn bisher hatte.</p>
+</section>
+
+<section data-help-field="phase_default">
+<h3>Wird gesetzt beim …</h3>
+<p>Welchen Status ein Auftrag bekommt, wenn eine <strong>Aktion</strong> ihn in diese Phase bringt. Der Schalter heisst je nach Phase:</p>
+<ul>
+    <li><strong>Wird gesetzt beim Druck der Auftragsbestätigung</strong> (Termin) — z.B. «Terminauftrag»;</li>
+    <li><strong>Wird gesetzt beim Druck des Lieferscheins</strong> (Geliefert) — z.B. «Geliefert»;</li>
+    <li><strong>Wird gesetzt beim Fakturieren</strong> (Abgeschlossen) — z.B. «Fakturiert». Diesen Status setzt nur das Fakturieren, von Hand ist er nicht wählbar.</li>
+</ul>
+<p>Pro Phase hat ihn ein Status; wird er hier eingeschaltet, verliert ihn der Status, der ihn bisher hatte. Ist keiner markiert, nimmt die Aktion den ersten der Phase (nach Sortierung). Steht der Auftrag schon in dieser Phase oder weiter, ändert die Aktion den Status nicht. Bei «Status ändern …» von Hand spielt der Schalter keine Rolle. Eröffnet und Abgelegt haben keinen solchen Schalter — keine Aktion führt dorthin (ein neuer Auftrag nimmt den Startstatus, abgelegt wird von Hand).</p>
+</section>
+
+<section data-help-field="set_on_posting">
+<h3>Wird gesetzt beim Verbuchen</h3>
+<p>Nur in der Phase <strong>Abgeschlossen</strong>: der Status, den ein Auftrag bekommt, wenn seine Rechnung mit <strong>«Journal verbuchen»</strong> (Auftragswesen › Faktura-Journal) in die Buchhaltung übernommen wird — z.B. «Gebucht». Bis dahin steht er im Status «Wird gesetzt beim Fakturieren» (z.B. «Fakturiert»), und die Rechnung lässt sich mit «Neu fakturieren» noch ändern. Der Lagerbestand ändert sich dabei nicht.</p>
+<p>Es gibt <strong>einen</strong> solchen Status für alle; wird er hier eingeschaltet, verliert ihn der Status, der ihn bisher hatte. Er gehört zu einem anderen Status als «Wird gesetzt beim Fakturieren». Von Hand ist er nicht wählbar. Hat ihn kein Status, bleibt der Auftrag beim Verbuchen, wo er ist.</p>
+</section>

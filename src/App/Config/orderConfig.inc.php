@@ -1,0 +1,103 @@
+<?php
+namespace Z77\Module\Order\App;
+
+use Z77\Core\Config\AuthRole;
+use Z77\Module\Order\Close\InvoiceableOrdersCheck;
+use Z77\Module\Order\Entities\SalesOrder;
+use Z77\Module\Order\Entities\SalesOrderLine;
+use Z77\Module\Order\Entities\SalesOrderStatusChange;
+
+/**
+ * Order module (ADR-040, ADR-043, P7 slim — `p7-order-plan.md`): the sales order (quote and order
+ * as ONE record, D1) with its lines and its status log, the order status as file-based master
+ * data with behaviour flags (`Entities\OrderStatus`, seeded once from
+ * `data/framework/order/order_statuses.default.json`), the one write path `Services\OrderService`
+ * (create / update / status change / delivery-note status / the booking print),
+ * the stock call per write through module-article's `StockLedger`, and the mapping of an order to
+ * debtor's `InvoiceDraft` (`Invoicing\OrderInvoiceDraft`).
+ *
+ * This module has NO routes and no view area of its own: its backend screens are fragments
+ * (`Ui\OrderStatusControllerTrait`, `Ui\OrderControllerTrait`) mounted by host
+ * controllers in module-backend under `/backend/order/…` (ADR-018 pattern).
+ *
+ * Storage (ADR-039 decision 5 — announced here, nothing scans a directory): `SalesOrder`,
+ * `SalesOrderLine` and `SalesOrderStatusChange` are Doctrine; the migrations live in
+ * `res/migrations` (schema and the `order` range in SEPARATE files). `OrderStatus` is file-based
+ * and needs no announcement.
+ *
+ * ⚠️ Today a project override of this file REPLACES it (first source match) — it must carry the
+ * FULL config. Known framework-wide gap, BOOT-CONFIG-001 (`docs/topics/bootstrap.md`).
+ */
+return [
+    'viewArea'   => false,
+    'moduleRole' => AuthRole::ADMIN,
+
+    'doctrineEntities' => [
+        SalesOrder::class,
+        SalesOrderLine::class,
+        SalesOrderStatusChange::class,
+    ],
+
+    // financial's year close asks every module «anything open?» (open-work registry of
+    // persistence-doctrine, scope `period-close`): an order dated in the year that sits in a
+    // bookable phase (Termin, Geliefert — `OrderPhase::isBookable()`) is a WARNING (plan §13 step 10) — not invoiced.
+    'openWorkChecks' => [
+        'period-close' => [InvoiceableOrdersCheck::class],
+    ],
+
+    // debtor's «Journal verbuchen» (ADR-054, owner 2026-10-24): the orders of the posted invoices move
+    // from «Fakturiert» to the status flagged «Wird gesetzt beim Verbuchen» — in the posting's unit of work.
+    'invoicePostedListeners' => [\Z77\Module\Order\Services\OrderInvoicePostedListener::class],
+
+    // The backend dashboard (ADR-052): this module's pending work and «+ Neu» buttons —
+    // module-backend collects every module's `dashboard` list (`DashboardContributors`).
+    'dashboard' => [\Z77\Module\Order\Dashboard\OrderDashboard::class],
+
+    // The order's PDFs as outbox attachments (owner 2026-11-13): `order-pdf:<id>@<kind>`, rendered at
+    // send time. Read only where module-mailing is installed (order only SUGGESTS it).
+    'mailAttachments' => [
+        \Z77\Module\Order\Mail\OrderPdfAttachment::TYPE => \Z77\Module\Order\Mail\OrderPdfAttachment::class,
+    ],
+
+    // The document mail kinds of the order's prints («Beleg-Mails», kernel DocumentMailKinds) — in
+    // the shape of debtor's invoice / credit note (step 3 of the mail plan, owner 2026-10-22),
+    // editable under Service › E-Mail › Beleg-Mails; SENT since 2026-11-13 from the order window's
+    // «Senden ▾» (`Mail\OrderMails`, placeholders filled there).
+    'documentMails' => [
+        'quote' => [
+            'label'        => 'Offerte',
+            'subject'      => ['de' => 'Offerte {nummer} — {absender}', 'en' => 'Quotation {nummer} — {absender}'],
+            'facts'        => ['de' => 'Offerte {nummer} · {betrag}', 'en' => 'Quotation {nummer} · {betrag}'],
+            'body'         => [
+                'de' => "{briefanrede}\n\nDie Offerte {nummer} liegt als PDF bei.",
+                'en' => "{briefanrede}\n\nQuotation {nummer} is attached as a PDF.",
+            ],
+            'placeholders' => ['nummer' => 'Auftragsnummer', 'kunde' => 'Name der Rechnungsadresse', 'betrag' => 'Total mit Währung', 'datum' => 'Auftragsdatum', 'absender' => 'Name des Mandanten', 'anzeigename' => 'Anzeigename des gewählten Absenders («Senden als»)', 'briefanrede' => 'Briefanrede der Rechnungsadresse (leer: «Guten Tag» mit Anrede und Name)'],
+        ],
+        'order-confirmation' => [
+            'label'        => 'Auftragsbestätigung',
+            'subject'      => ['de' => 'Auftragsbestätigung {nummer} — {absender}', 'en' => 'Order confirmation {nummer} — {absender}'],
+            'facts'        => ['de' => 'Auftragsbestätigung {nummer} · {betrag} · Termin {termin}', 'en' => 'Order confirmation {nummer} · {betrag} · date {termin}'],
+            'body'         => [
+                'de' => "{briefanrede}\n\nBesten Dank für den Auftrag. Die Auftragsbestätigung {nummer} liegt als PDF bei.",
+                'en' => "{briefanrede}\n\nThank you for the order. Order confirmation {nummer} is attached as a PDF.",
+            ],
+            'placeholders' => ['nummer' => 'Auftragsnummer', 'kunde' => 'Name der Rechnungsadresse', 'betrag' => 'Total mit Währung', 'datum' => 'Auftragsdatum', 'termin' => 'Leistung von (Termin)', 'absender' => 'Name des Mandanten', 'anzeigename' => 'Anzeigename des gewählten Absenders («Senden als»)', 'briefanrede' => 'Briefanrede der Rechnungsadresse (leer: «Guten Tag» mit Anrede und Name)'],
+        ],
+        'delivery-note' => [
+            'label'        => 'Lieferschein',
+            'subject'      => ['de' => 'Lieferschein {nummer} — {absender}', 'en' => 'Delivery note {nummer} — {absender}'],
+            'facts'        => ['de' => 'Lieferschein {nummer} · geliefert am {datum}', 'en' => 'Delivery note {nummer} · delivered on {datum}'],
+            'body'         => [
+                'de' => "{briefanrede}\n\nDer Lieferschein zu Auftrag {nummer} liegt als PDF bei.",
+                'en' => "{briefanrede}\n\nThe delivery note for order {nummer} is attached as a PDF.",
+            ],
+            'placeholders' => ['nummer' => 'Auftragsnummer', 'kunde' => 'Name der Rechnungsadresse', 'datum' => 'Lieferdatum', 'absender' => 'Name des Mandanten', 'anzeigename' => 'Anzeigename des gewählten Absenders («Senden als»)', 'briefanrede' => 'Briefanrede der Rechnungsadresse (leer: «Guten Tag» mit Anrede und Name)'],
+        ],
+    ],
+
+    // Nothing here renders a page; the host's cache policy applies to the mount.
+    'cache' => [
+        'enabled' => false,
+    ],
+];

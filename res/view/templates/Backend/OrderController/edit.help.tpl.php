@@ -1,0 +1,146 @@
+<?php
+/**
+ * Help for the order window (ADR-048, plan §10) — attached by the trait, opened with «Hilfe» in
+ * the title bar or F1; a general part (the flow, what «gebucht» means, why payment is not a
+ * status) and a section per field (`data-help-field` = the field's `name`, a line field by its
+ * `data-help-key`). The form itself carries no explanations.
+ *
+ * @var bool $isNew       passed by the trait, not read: the status section names both cases, so the KI-Assistent
+ *                        (ADR-055 — renders helps with an empty context) reads the new-order rule too
+ * @var bool $liableToVat  false = the mandator is not liable to VAT: no MWST wording, no price mode (owner 2026-10-21)
+ */
+$vat = $liableToVat ?? true;
+?>
+<h3>Auftrag</h3>
+<p>Offerte oder Auftrag bearbeiten: Kunde, Adressen, Positionen und Status; Offerte, Auftragsbestätigung und Lieferschein drucken oder per E-Mail senden, fakturieren, neu fakturieren, löschen.</p>
+<p>Offerte und Auftrag sind derselbe Datensatz mit derselben Nummer; was er ist, sagt der Status.</p>
+<p>Der übliche Weg: <strong>Offerte</strong> → <strong>Auftragsbestätigung …</strong> (setzt «Terminauftrag») → <strong>Lieferschein …</strong> (setzt «Geliefert») → <strong>Fakturieren …</strong> (setzt «Fakturiert») → <strong>Journal verbuchen</strong> im Faktura-Journal (setzt «Gebucht»). Jeder Status gehört zu einer festen Phase, und die Phase bestimmt, was geht; die Status selbst stehen unter Stammdaten › Auftragswesen › Auftragsstatus.</p>
+<h4>Offerte, Auftragsbestätigung und Lieferschein drucken</h4>
+<p><strong>Drucken ▾</strong> öffnet die PDFs in einem neuen Tab: <strong>Offerte</strong> bzw. <strong>Auftragsbestätigung</strong> (je nach Phase); bei einer Offerte <strong>Auftragsbestätigung …</strong> — der Druck bestätigt den Auftrag —, sonst <strong>Lieferschein …</strong> — der erste Druck setzt «Geliefert» und ein leeres «Leistung von» auf den Drucktag; dazu, solange keine Rechnung besteht, <strong>Rechnungsvorschau</strong> (die Rechnung, wie das Fakturieren sie heute erstellen würde, ohne Nummer und Zahlteil). Vor einem Druck, der den Status setzt, fragt ein Fenster nach; ein Nachdruck ändert nichts. Ein abgelegter Auftrag druckt nichts.</p>
+<p><strong>Speichern</strong> schreibt Kopf, Positionen und einen gewählten Status; das Total rechnet die Debitorenbuchhaltung genau so, wie das Fakturieren die Rechnung erstellen wird (<?= $vat ? 'MWST pro Code, ' : 'ohne MWST — der Mandant ist nicht mehrwertsteuerpflichtig —, ' ?>Rundung auf 5 Rappen). Was das Fakturieren heute verhindern würde, steht unter dem Total als «Vor dem Fakturieren beheben». Während Positionen geändert werden, rechnet das Total <strong>laufend</strong> aus den Zeilen mit (ohne Rundung, so beschriftet); massgebend ist das Total nach dem Speichern.</p>
+<h4>Fakturieren und Neu fakturieren</h4>
+<p><strong>Fakturieren …</strong> (in den Phasen Termin und Geliefert, solange keine Rechnung besteht) erstellt aus dem Auftrag die Rechnung, vergibt die Belegnummer, legt ihr PDF unveränderlich ab und zeigt sie danach in der Liste der fakturierten Rechnungen — dort das PDF mit QR-Zahlteil, als ZIP oder per E-Mail an die Rechnungsadresse. Danach ist der Auftrag <strong>fakturiert</strong>. Die Rechnung steht im <strong>Faktura-Journal</strong>; in die Buchhaltung kommt sie mit «Journal verbuchen» (Auftragswesen › Faktura-Journal) — der Auftrag steht danach in «Gebucht». <strong>Solange sie dort steht</strong>, lässt sich der Auftrag noch ändern: weicht er danach von der Rechnung ab, sperrt das das Faktura-Journal, bis <strong>Neu fakturieren …</strong> die Rechnung aus dem Auftrag neu erstellt — bei gleichem Betrag, gleicher MWST und gleichem Kunden als neue Version mit gleicher Nummer, sonst als Ersatz mit neuer Nummer (die neue Rechnung druckt «ersetzt Rechnung …», der Auftrag nennt danach sie). Nach «Journal verbuchen» bleibt der Auftrag, wie er fakturiert wurde; eine Korrektur ist dann eine Gutschrift auf der Rechnung. Ein Auftrag mit Total 0 wird nicht fakturiert, sondern von Hand auf «Erledigt» gesetzt.</p>
+<p>Ob die Rechnung bezahlt ist, ist <strong>kein Status</strong> des Auftrags: es steht unter «Belege» und in den Listen «Fakturiert» und «Gebucht» in der Spalte «Zahlung» und kommt aus der Debitorenbuchhaltung. «Erledigt» setzt man von Hand — die Ware ist geliefert, es gibt keine Rechnung; der Auftrag steht danach im Reiter «Erledigt». «Storniert» (Reiter «Abgelegt») gilt für eine abgelehnte Offerte oder einen zurückgezogenen Auftrag.</p>
+<h4>Offerte und Auftragsbestätigung per E-Mail senden</h4>
+<p><strong>Senden ▾</strong> schickt einen Beleg des Auftrags per E-Mail an die E-Mail-Adresse der Rechnungsadresse: eine Offerte die <strong>Offerte</strong>, ab «Termin» die <strong>Auftragsbestätigung</strong>, ab «Geliefert» auch den <strong>Lieferschein</strong> — immer so, wie der Beleg beim Versand dasteht, als PDF im Anhang. Das Senden setzt den Auftrag nicht weiter; die Auftragsbestätigung einer Offerte und der Lieferschein eines Terminauftrags werden darum zuerst gedruckt (Drucken ▾). Vor dem Senden zeigt ein Fenster Empfänger, Betreff und «Senden als»; fehlt die E-Mail-Adresse, steht es dort. Betreff, Faktenzeile und Text: Service › E-Mail › Beleg-Mails; das Mail grüsst mit der <strong>Briefanrede</strong> der Rechnungsadresse (leer: «Guten Tag» mit Anrede und Name) und schliesst mit «Diese Nachricht wurde maschinell erstellt. Fragen beantwortet gerne:» und deinem Absender. Nochmals senden geht jederzeit, das Fenster sagt, was schon ging. «Senden ▾» erscheint nur, wenn der E-Mail-Versand eingerichtet ist.</p>
+<h4>Auftrag löschen oder ablegen</h4>
+<p><strong>Löschen …</strong> (solange keine verbuchte Rechnung besteht) löscht den Auftrag mit einem Grund: er bleibt mit seiner Nummer unter «Gelöscht» aufbewahrt, eine fakturierte, noch nicht verbuchte Rechnung wird mit ihm gelöscht. Für Erfassungsfehler; ein Auftrag, der nicht zustande kommt, wird besser auf «Storniert» gesetzt (Reiter «Abgelegt»).</p>
+<p><strong>Verlauf und Belege</strong> (am Ende des Fensters, zum Aufklappen): der Verlauf zeigt jeden Statuswechsel (wann, wer, von → nach, wodurch), «Belege» die Rechnung mit ihrem Zahlungsstand und ihre Gutschriften.</p>
+<h4>Lager</h4>
+<p><strong>Lager: noch nicht verfügbar — folgt.</strong> Die Phasen sind vorbereitet (Termin reserviert, ab Geliefert wird abgebucht), aber heute bucht ein Auftrag keinen Bestand und fragt nie nach einem Grund für eine Rückbuchung.</p>
+
+<section data-help-field="contact">
+<h3>Kunde</h3>
+<p><strong>Kunde wählen …</strong> öffnet die Suche: nach Name, Ort, Kundennummer oder E-Mail suchen, dann <strong>Übernehmen</strong>. Die Lieferadressen des gewählten Kunden stehen danach gleich zur Auswahl. Wer nicht gefunden wird, lässt sich dort mit <strong>+ Neuer Kontakt</strong> erfassen.</p>
+<p>Gefunden werden die aktiven Debitoren und die aktiven <strong>Kontakte ohne Debitorenprofil</strong> («neu»). Ein solcher Kontakt wird erst Kunde, wenn er <strong>Debitor</strong> ist: <strong>Übernehmen</strong> fragt zuerst <strong>Debitor anlegen</strong> — mit Preisen netto oder brutto und den Zahlungskonditionen; die Kundennummer wird dabei vergeben. <strong>Abbrechen</strong> wählt keinen Kunden. So entsteht kein Auftrag mit dem falschen Preismodus, der nach dem Buchen gutgeschrieben und neu erstellt werden müsste. Ebenso fragt <strong>+ Neuer Kontakt</strong> nach dem Speichern des Kontakts nach dem Debitor.</p>
+<?php if ($vat): ?>
+<p>Mit dem Kunden übernimmt der Auftrag dessen <strong>Preise</strong> (netto oder brutto, siehe dort).</p>
+<?php endif; ?>
+</section>
+
+<section data-help-field="subject_label">
+<h3>Betreffname</h3>
+<p>Freiwillig, ein kurzes Wort (höchstens 80 Zeichen) vor dem Betreff — zum Beispiel «Projekt», «Referenz» oder «Ihre Bestellnummer». Gedruckt wird «Betreffname: Betreff» auf einer Zeile, auf Offerte, Auftragsbestätigung, Lieferschein und Rechnung; ohne Betreff wird nichts gedruckt. Ein Doppelpunkt am Ende wird weggelassen. Ein neuer Auftrag beginnt mit dem Betreffnamen des Debitors, sonst mit dem des Mandanten (Stammdaten › Firma › Mandant, Reiter «Belege»); solange du ihn nicht änderst, folgt er einem anderen Kunden. Die Liste schlägt die schon verwendeten Betreffnamen vor.</p>
+</section>
+
+<section data-help-field="subject">
+<h3>Betreff</h3>
+<p>Eine Zeile (höchstens 200 Zeichen): steht auf Offerte, Auftragsbestätigung, Lieferschein und — als «Auftrag Nr · Betreff» — auf der Rechnung.</p>
+</section>
+
+<section data-help-field="order_date">
+<h3>Auftragsdatum</h3>
+<p>Das Datum des Auftrags. Eine Artikelposition übernimmt den Preis, der an diesem Tag gilt.</p>
+</section>
+
+<section data-help-field="service_from">
+<h3>Leistung von / bis</h3>
+<p>Wann geliefert oder geleistet wird — bei Ware der <strong>Liefertermin</strong>, bei einer Dienstleistung der Beginn. Es ist dasselbe Datum wie das Leistungsdatum der Rechnung<?= $vat ? ': der <strong>MWST-Satz</strong> richtet sich danach' : '' ?>; leer heisst: das Rechnungsdatum beim Fakturieren. «bis» nur für einen Zeitraum, und nur mit «von».</p>
+<p>Ist das Feld leer, setzt der Druck des <strong>Lieferscheins</strong> den Drucktag ein. Verschiebt sich die Lieferung, hier nachführen — die Auftragsliste sucht und sortiert in der Spalte «Leistung».</p>
+</section>
+
+<section data-help-field="status">
+<h3>Status</h3>
+<p>Ein <strong>neuer</strong> Auftrag beginnt im Startstatus (meist «Offerte», festgelegt unter Stammdaten › Auftragswesen › Auftragsstatus); ein anderer lässt sich beim Erfassen wählen — aus den Phasen Eröffnet, Termin und Geliefert, nicht «Fakturiert», «Gebucht» oder ein abschliessender.</p>
+<p>Bei einem <strong>bestehenden</strong> Auftrag wird der Status hier gewählt und mit <strong>Speichern</strong> gesetzt, zusammen mit den übrigen Änderungen — vorwärts, zurück oder seitwärts, solange zum Auftrag keine Rechnung besteht; mit Rechnung bleibt der Status. «Fakturiert» setzt nur das Fakturieren, «Gebucht» nur «Journal verbuchen»; «Terminauftrag» setzt auch die Auftragsbestätigung, «Geliefert» auch der Lieferschein. Ist der Auftrag gesperrt (Erledigt, Abgelegt), führt das Statusfeld zu <strong>Status ändern …</strong>, dem Weg zurück in einen bearbeitbaren Status.</p>
+</section>
+
+<section data-help-field="bill">
+<h3>Rechnungsadresse</h3>
+<p>Wohin die Rechnung geht und an welche E-Mail-Adresse Offerte, Auftragsbestätigung und Lieferschein gesendet werden. «Rechnungsadresse des Kunden» = die Adresse, die beim Fakturieren aus dem Kontakt genommen wird (Typ «Rechnungsadresse», sonst die Hauptadresse, sonst die erste). Sonst eine der Adressen des Kunden — sie wird beim Speichern als Kopie in den Auftrag übernommen; ändert sie sich später beim Kontakt, bleibt der Auftrag, wie er ist. <strong>anpassen</strong> öffnet die Felder der Adresse nur für diesen Auftrag (z.B. ein anderer Empfänger, eine andere E-Mail-Adresse oder Briefanrede); nach dem Speichern zeigt die Karte «angepasst».</p>
+</section>
+
+<section data-help-field="ship">
+<h3>Lieferadresse</h3>
+<p>Wohin der Lieferschein geht. «wie Rechnungsadresse» = die Adresse der Rechnung. Sonst eine der Adressen des Kunden — sie wird beim Speichern als Kopie in den Auftrag übernommen; ändert sie sich später beim Kontakt, bleibt der Auftrag, wie er ist. Wird ein anderer Kunde gewählt, stehen gleich dessen Adressen zur Auswahl. <strong>anpassen</strong> wie bei der Rechnungsadresse. Die Rechnung geht immer an die Rechnungsadresse.</p>
+</section>
+
+<?php if ($vat): ?>
+<section data-help-field="price_mode">
+<h3>Preise netto / brutto</h3>
+<p>Ob die Preise der Positionen die MWST enthalten. Ein neuer Auftrag beginnt mit dem Preismodus des Debitors (im Debitor hinterlegt, «Debitor anpassen»); hier lässt er sich für diesen Auftrag ändern.</p>
+<p>Ein Wechsel rechnet die Positionen <strong>sofort</strong> um: eine Artikelposition nimmt wieder genau den Artikelpreis in der neuen Art; ein von Hand geänderter Preis wird mit dem MWST-Satz der Zeile umgerechnet und auf den Rappen gerundet. Ohne JavaScript rechnet das Speichern um.</p>
+</section>
+<?php endif; ?>
+
+<section data-help-field="terms">
+<h3>Zahlungskonditionen</h3>
+<p>Die Zahlungsfrist und ein allfälliges Skonto der Rechnung, die das Fakturieren erstellt («30 Tage netto»). «wie beim Kunden» = die Konditionen, die beim Debitor hinterlegt sind — so, wie sie beim Fakturieren gelten. Eine andere Wahl gilt nur für diesen Auftrag. «Debitor anpassen» ändert die Konditionen, die beim Kunden hinterlegt sind (für alle künftigen Rechnungen). Das Konto für den QR-Zahlteil wählt der Auftrag selbst: ein neuer Auftrag das erste aktive Zahlungsziel, ein bestehender behält seines.</p>
+</section>
+
+<section data-help-field="notes">
+<h3>Notiz (intern)</h3>
+<p>Nur hier sichtbar, wird nie gedruckt.</p>
+</section>
+
+<section data-help-field="type">
+<h3>Positionen</h3>
+<p>Ein Auftrag kennt zwei Arten von Zeilen:</p>
+<ul>
+    <li><strong>Leistung</strong>: ein Artikel, Menge × Preis. <strong>Jede Position mit Preis ist ein Artikel</strong> — auch eine Pauschale (ein Artikel mit Menge 1). <?= $vat ? 'MWST-Satz und Ertragskonto kommen' : 'Das Ertragskonto kommt' ?> vom Artikel.</li>
+    <li><strong>Text</strong>: nur Text über die ganze Breite — kein Artikel, keine Menge, kein Preis.</li>
+</ul>
+<p><strong>+ Artikel</strong> und <strong>+ Textzeile</strong> fügen unten eine Zeile an, <strong>×</strong> entfernt eine. Die Reihenfolge ist die Druckreihenfolge: mit <strong>⋮⋮</strong> eine Zeile an ihren Platz ziehen (oder ⋮⋮ anwählen und <strong>Alt+↑ / Alt+↓</strong>); eine Position nimmt ihre eingerückten Zeilen mit. Die Nummern 1, 1.1, 2 … stellen sich dabei neu.</p>
+<p>Eine Position <strong>ohne Artikel</strong> (aus der Zeit vor dem 18.10.2026) bleibt lesbar und lässt sich unverändert weiter speichern; wer sie ändern will, wählt einen Artikel. Eine frühere «Pauschale» steht als Leistung mit Menge 1 da — der Betrag bleibt derselbe.</p>
+</section>
+
+<section data-help-field="child">
+<h3>Einrücken ⇥</h3>
+<p>Eingeschaltet, steht die Zeile <strong>unter der Position darüber</strong> (eine Ebene, Nummer 1.1) und wird mit ihr gedruckt — z.B. eine Textzeile mit Details zu einem Artikel. Unter einer Textzeile stehen keine Positionen.</p>
+</section>
+
+<section data-help-field="article">
+<h3>Artikel</h3>
+<p>Die Artikelnummer — eintippen, wenn bekannt, sonst mit der Lupe suchen und wählen. Sobald ein Artikel gewählt ist, füllt die Zeile <strong>Text, Einheit und Preis</strong> (der Preis am Auftragsdatum) — überschreiben lässt sich alles; ein anderer Artikel füllt sie neu. <?= $vat ? 'Der <strong>MWST-Satz</strong> steht in der Spalte MWST, das Ertragskonto zeigt der Auftrag nicht: beides kommt immer vom Artikel' : 'Das Ertragskonto zeigt der Auftrag nicht: es kommt immer vom Artikel' ?> (ein anderes Konto ist ein anderer Artikel). Was leer bleibt, übernimmt das Speichern vom Artikel.</p>
+</section>
+
+<section data-help-field="code">
+<h3>Code</h3>
+<p>Das kleine Feld über dem Text — eine kurze Angabe zur Zeile, z.B. das <strong>Leistungsdatum</strong> («12.11.2026»), höchstens 16 Zeichen. Es bleibt leer, bis du etwas eintippst; der Artikel füllt es nicht. Gedruckt wird es klein über dem Text der Position — auf Offerte, Auftragsbestätigung, Lieferschein und Rechnung. Leer nimmt es keinen Platz weg.</p>
+</section>
+
+<section data-help-field="text">
+<h3>Text</h3>
+<p>Was gedruckt wird, auch über mehrere Zeilen — das Feld wächst mit. Bei einem Artikel ist die <strong>erste Zeile</strong> sein Name (hervorgehoben), darunter kann eine Beschreibung stehen. Eine Zeile ohne Artikel, Text, Menge und Preis wird beim Speichern weggelassen.</p>
+</section>
+
+<section data-help-field="quantity">
+<h3>Menge</h3>
+<p>Mit höchstens drei Dezimalen (0.25 h). <strong>Negativ</strong> = eine Rücknahme (Ware zurück, im Lager ein Zugang).</p>
+</section>
+
+<section data-help-field="unit">
+<h3>Einheit</h3>
+<p>«Stk», «h», «Fl.» … — kommt vom Artikel und lässt sich auf der Position überschreiben; wird auf Offerte, Lieferschein und Rechnung gedruckt.</p>
+</section>
+
+<section data-help-field="price">
+<h3>Preis</h3>
+<p>Pro Einheit<?= $vat ? ', netto oder brutto wie im Kopf gewählt' : '' ?>. Leer bei einem Artikel = der Artikelpreis am Auftragsdatum.</p>
+</section>
+
+<section data-help-field="discount">
+<h3>Rabatt</h3>
+<p>In Prozent auf den Positionsbetrag.</p>
+</section>
+

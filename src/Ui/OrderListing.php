@@ -1,0 +1,165 @@
+<?php
+namespace Z77\Module\Order\Ui;
+
+use Z77\Module\Order\Entities\OrderPhase;
+use Z77\Module\Order\Entities\OrderStatus;
+use Z77\Module\Order\Repositories\OrderSearch;
+use Z77\Shared\Listing\Column;
+use Z77\Shared\Listing\ListDefinition;
+use Z77\Shared\Listing\ListState;
+use Z77\Shared\Listing\Parsers;
+
+/**
+ * Auftragswesen › Aufträge as a standard list (listing.md, plan §9.3; the owner's board on the
+ * developer canvas): the VIEW tab (`?view=`) as an extra, the columns state icon · Nr. · Datum ·
+ * Kunde · Betreff · Status · Rechnung · Betrag — and «Zahlung» in «Fakturiert» and «Gebucht» —, six of them searched in
+ * the database, sorted by number newest first, 50 per page. In the BOOKABLE tabs («Termin»,
+ * «Geliefert») the rows lead with the selection checkbox of the booking print.
+ *
+ * **The tabs are the PHASES** (ADR-043 addendum 2026-10-15, {@see viewOf()}): each status falls
+ * into the tab of its phase, so a new status lands in its tab without code — except `closed`,
+ * split in three by WHO sets the status (owner 2026-11-13): «Fakturiert» (the phase default, set
+ * by invoicing only), «Gebucht» (`setOnPosting`, set by «Journal verbuchen» only), «Erledigt»
+ * (every other closed status — set by hand, goods moved, no invoice). «Alle» shows every
+ * order, also one whose status is missing from the master data. **Status** searches the LABELS
+ * («Terminauftrag», «geliefert» — owner: «finde alle Aufträge mit Status …»): the matching
+ * statuses' codes narrow the tab's codes; the status master data is a handful of rows, read anyway.
+ */
+final class OrderListing
+{
+    public const ID = 'order-find';
+
+    public const LIMIT = 50;
+
+    public const VIEW_NEW       = 'new';
+    public const VIEW_ACTIVE    = 'confirmed';
+    public const VIEW_DELIVERED = 'delivered';
+    /** The `closed` phase in three tabs (owner 2026-11-13) — {@see viewOf()}. */
+    public const VIEW_INVOICED  = 'invoiced';
+    public const VIEW_BOOKED    = 'booked';
+    public const VIEW_DONE      = 'done';
+    public const VIEW_CANCELLED = 'cancelled';
+    public const VIEW_ALL       = 'all';
+    /** The deleted orders (ADR-054 decision 14) — kept with their number, hidden from every other tab. */
+    public const VIEW_DELETED   = 'deleted';
+
+    /** The tab the list opens with — not the first one: the order of `VIEWS` is the ladder. */
+    public const DEFAULT_VIEW = self::VIEW_ACTIVE;
+
+    /** View → tab label, along the ladder; the default is `DEFAULT_VIEW`. */
+    public const VIEWS = [
+        self::VIEW_NEW       => 'Eröffnet',   // owner 2026-10-16 (was «Offerten»)
+        self::VIEW_ACTIVE    => 'Termin',     // owner 2026-10-16 (was «Termin»)
+        self::VIEW_DELIVERED => 'Geliefert',
+        self::VIEW_INVOICED  => 'Fakturiert',
+        self::VIEW_BOOKED    => 'Gebucht',
+        self::VIEW_DONE      => 'Erledigt',
+        self::VIEW_CANCELLED => 'Abgelegt',   // owner 2026-11-13 (was «Storniert»)
+        self::VIEW_ALL       => 'Alle',
+        self::VIEW_DELETED   => 'Gelöscht',
+    ];
+
+    public static function definition(string $currency, string $view = self::DEFAULT_VIEW): ListDefinition
+    {
+        $columns = self::isSelectable($view) ? [Column::slot('Auswahl')] : [];
+        $columns = array_merge($columns, [
+            Column::slot('Öffnen'),
+            Column::search('f_nr', 'Nr.', '5rem', 'number', Parsers::integer(9), numeric: true, descendingFirst: true),
+            Column::search('f_date', 'Datum', '6.5rem', 'date', Parsers::dateRange(), priority: '3', descendingFirst: true),
+            // «Leistung von» IS the delivery date of goods (owner 2026-10-16) — «alle Terminaufträge mit Leistung 11.2026».
+            Column::search('f_service', 'Leistung', '7.5rem', 'service', Parsers::dateRange(), priority: '2'),
+            Column::search('f_name', 'Kunde', 'minmax(10rem, 2fr)', 'name', Parsers::text()),
+            Column::search('f_subject', 'Betreff', 'minmax(8rem, 2fr)', null, Parsers::text(), priority: '2'),
+            Column::search('f_status', 'Status', '9rem', null, Parsers::text(), priority: '2'),
+            // The booked invoice's number — its own column (owner 2026-10-22), searched and sorted; was a muted add-on of «Zahlung».
+            Column::search('f_invoice', 'Rechnung', '6.5rem', 'invoice', Parsers::integer(9), numeric: true, priority: '2', descendingFirst: true),
+            Column::search('f_amount', 'Betrag', '8rem', 'amount', Parsers::amount($currency), numeric: true, descendingFirst: true, inputMode: 'decimal'),
+        ]);
+        if (self::showsPayment($view)) {
+            $columns[] = Column::plain('Zahlung', '9rem');
+        }
+
+        // ListDefinition takes the FIRST allowed value as the default — DEFAULT_VIEW goes in front.
+        $views = array_values(array_unique([self::DEFAULT_VIEW, ...array_keys(self::VIEWS)]));
+
+        return new ListDefinition(self::ID, $columns, 'number', self::LIMIT, ['view' => $views]);
+    }
+
+    /** Whether the rows of $view carry the booking print's selection — the bookable phases. */
+    public static function isSelectable(string $view): bool
+    {
+        return OrderPhase::tryFrom($view)?->isBookable() ?? false;
+    }
+
+    /** Whether the rows of $view carry the «Zahlung» column — the tabs of the invoiced orders. */
+    public static function showsPayment(string $view): bool
+    {
+        return $view === self::VIEW_INVOICED || $view === self::VIEW_BOOKED;
+    }
+
+    /**
+     * The tab a status belongs to — the tab of its PHASE; a `closed` status by who sets it: the
+     * posting (`setOnPosting`) → «Gebucht», invoicing (the phase default) → «Fakturiert», any
+     * other (set by hand — `OrderStatuses::refusal()` keeps both system statuses out of a status
+     * change) → «Erledigt». Pure.
+     */
+    public static function viewOf(OrderStatus $status): string
+    {
+        if ($status->getPhase() !== OrderPhase::Closed) {
+            return $status->getPhase()->value;
+        }
+
+        return match (true) {
+            $status->isSetOnPosting() => self::VIEW_BOOKED,
+            $status->isPhaseDefault() => self::VIEW_INVOICED,
+            default                   => self::VIEW_DONE,
+        };
+    }
+
+    /**
+     * The status codes of $view among $statuses (active or not — an order keeps a deactivated
+     * status) whose label contains $label (case-insensitive; null = any); null for «Alle» without
+     * a label (no filter). Pure.
+     *
+     * @param list<OrderStatus> $statuses
+     * @return list<string>|null
+     */
+    public static function codesOf(string $view, array $statuses, ?string $label = null): ?array
+    {
+        if (($view === self::VIEW_ALL || $view === self::VIEW_DELETED) && $label === null) {
+            return null;
+        }
+        $needle = $label !== null ? mb_strtolower($label) : null;
+
+        return array_values(array_map(static fn(OrderStatus $s) => $s->getCode(), array_filter(
+            $statuses,
+            static fn(OrderStatus $s) => ($view === self::VIEW_ALL || $view === self::VIEW_DELETED || self::viewOf($s) === $view)
+                && ($needle === null || str_contains(mb_strtolower($s->getLabel()), $needle))
+        )));
+    }
+
+
+    /** What the repository is asked for. @param list<OrderStatus> $statuses */
+    public static function search(ListState $state, array $statuses): OrderSearch
+    {
+        $date    = $state->parsed('f_date');
+        $service = $state->parsed('f_service');
+        $text = static fn(mixed $v): ?string => is_string($v) && trim($v) !== '' ? trim($v) : null;
+
+        return new OrderSearch(
+            self::codesOf($state->extra('view'), $statuses, $text($state->parsed('f_status'))),
+            $state->parsed('f_nr'),
+            $date[0] ?? null,
+            $date[1] ?? null,
+            $text($state->parsed('f_name')),
+            $text($state->parsed('f_subject')),
+            $state->parsed('f_amount'),
+            $service[0] ?? null,
+            $service[1] ?? null,
+            $state->sort,
+            $state->descending,
+            $state->parsed('f_invoice'),
+            $state->extra('view') === self::VIEW_DELETED,
+        );
+    }
+}

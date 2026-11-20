@@ -1,0 +1,76 @@
+[
+    {
+        "id": 1,
+        "code": "opened",
+        "label": "Offerte",
+        "phase": "new",
+        "position": 10,
+        "start": true,
+        "phase_default": false,
+        "active": true
+    },
+    {
+        "id": 2,
+        "code": "scheduled",
+        "label": "Terminauftrag",
+        "phase": "confirmed",
+        "position": 10,
+        "phase_default": true,
+        "active": true
+    },
+    {
+        "id": 3,
+        "code": "delivered",
+        "label": "Geliefert",
+        "phase": "delivered",
+        "position": 10,
+        "phase_default": true,
+        "active": true
+    },
+    {
+        "id": 4,
+        "code": "to-invoice",
+        "label": "Zu fakturieren",
+        "phase": "delivered",
+        "position": 20,
+        "phase_default": false,
+        "active": true
+    },
+    {
+        "id": 8,
+        "code": "invoiced",
+        "label": "Fakturiert",
+        "phase": "closed",
+        "position": 5,
+        "phase_default": true,
+        "active": true
+    },
+    {
+        "id": 5,
+        "code": "booked",
+        "label": "Gebucht",
+        "phase": "closed",
+        "position": 10,
+        "phase_default": false,
+        "set_on_posting": true,
+        "active": true
+    },
+    {
+        "id": 6,
+        "code": "done",
+        "label": "Erledigt",
+        "phase": "closed",
+        "position": 20,
+        "phase_default": false,
+        "active": true
+    },
+    {
+        "id": 7,
+        "code": "cancelled",
+        "label": "Storniert",
+        "phase": "cancelled",
+        "position": 10,
+        "phase_default": false,
+        "active": true
+    }
+]
